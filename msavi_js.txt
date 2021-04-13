@@ -1,0 +1,198 @@
+
+////////importing landsat8 image dataset////////////
+
+var land8 = ee.ImageCollection("LANDSAT/LC08/C01/T1_SR");
+
+/////// Places ///////////
+
+
+var place1 = ee.Geometry.Polygon([[
+  
+  [75.45157492160797,30.634404129904425],
+  [75.4524278640747,30.63372099804389],
+  [75.45236885547638,30.634399514164798],
+  [75.45157492160797,30.634404129904425]
+  
+  ]] );
+
+
+var place2 = ee.Geometry.Polygon([[
+  
+[85.85622847080231,26.09425078918021],
+[85.85590660572052,26.093581136401006],
+[85.85663080215454,26.09337879451938 ],
+[85.85686147212981,26.094009907326967],
+[85.85622847080231,26.09425078918021]
+
+  ]] );
+
+
+var place3 = ee.Geometry.Polygon([[
+  
+[78.66571158170699,17.66869116558751],
+[78.6662346124649,17.6686911655875],
+[78.6662346124649,17.66929686130703],
+[78.66571158170699,17.66929686130703],
+[78.66571158170699,17.66869116558751]
+
+  ]] );
+
+
+//Center the map to the region of interest using the region 
+Map.centerObject(place1,17);
+Map.addLayer(place1);
+
+// Map.centerObject(place2,17);
+// Map.addLayer(place2);
+
+// Map.centerObject(place3,17);
+// Map.addLayer(place3);
+
+Map.setOptions('satellite');
+
+
+
+function maskClouds(image) {
+  
+  // Bits 3 and 5 are cloud shadow and cloud, respectively.
+    var cloudShadowBitMask = ee.Number(2).pow(3).int();
+    var cloudsBitMask = ee.Number(2).pow(5).int();  
+    
+    // Get the pixel QA band.
+    var qa = image.select('pixel_qa');
+    
+     // Both flags should be set to zero, indicating clear conditions.
+    var mask = qa.bitwiseAnd(cloudShadowBitMask).eq(0).and(qa.bitwiseAnd(cloudsBitMask).eq(0)); 
+  
+  // Return the masked image, scaled to [0, 1].
+  return image.updateMask(mask).divide(10000).copyProperties(image, ["system:time_start"]);
+}
+
+
+//////////////////////////////////////////////////
+///////////// MSAVI2 Time Series //////////////////
+//////////////////////////////////////////////////
+
+
+function addMSAVI2 (image) {
+
+//(2 * NIR + 1 – sqrt ((2 * NIR + 1)2 – 8 * (NIR - R))) / 2
+
+  var msavi = image.expression(
+    '(2 * NIR + 1 - sqrt(pow((2 * NIR + 1), 2) - 8 * (NIR - RED)) ) / 2', 
+    {
+      'NIR': image.select('B5'), 
+      'RED': image.select('B4')
+    }
+  ).rename('MSAVI');
+
+  return image.addBands(msavi);
+}
+
+
+
+var startDate ='2020-01-01'; 
+var endDate ='2020-06-30'; 
+
+
+var msavi2 = land8.filterDate(startDate,endDate)
+    .filterBounds(place1)
+    .map(maskClouds)
+    .map(addMSAVI2);
+
+print(msavi2);
+
+
+var msavi2_1 = land8.filterDate(startDate,endDate)
+    .filterBounds(place2)
+    .map(maskClouds)
+    .map(addMSAVI2);
+    
+    
+var msavi2_2 = land8.filterDate(startDate,endDate)
+    .filterBounds(place3)
+    .map(maskClouds)
+    .map(addMSAVI2);
+
+// Timeseries chart for place1 region.
+
+var chart =
+    ui.Chart.image
+        .seriesByRegion({
+          imageCollection: msavi2,
+          band: 'MSAVI',
+          regions: place1,
+          reducer: ee.Reducer.mean(),
+          scale: 30,
+          seriesProperty: 'label',
+          xProperty: 'system:time_start'
+        })
+        .setChartType('LineChart')
+        .setOptions({
+          title: 'MSAVI2 Time Series Map for place1 ',
+          hAxis: {title: 'Date', titleTextStyle: {italic: false, bold: true}},
+          vAxis: {
+            title: 'MSAVI2 Value ranges',
+            titleTextStyle: {italic: false, bold: true}
+          },
+          lineWidth: 5,
+          colors: ['f0af07', '0f8755', '76b349'],
+        });
+
+print(chart);
+
+
+// Timeseries chart for place2 region.
+
+
+var chart1 =
+    ui.Chart.image
+        .seriesByRegion({
+          imageCollection: msavi2_1,
+          band: 'MSAVI',
+          regions: place2,
+          reducer: ee.Reducer.mean(),
+          scale: 30,
+          seriesProperty: 'label',
+          xProperty: 'system:time_start'
+        })
+        .setChartType('LineChart')
+        .setOptions({
+          title: 'MSAVI2 Time Series Map for place2 ',
+          hAxis: {title: 'Date', titleTextStyle: {italic: false, bold: true}},
+          vAxis: {
+            title: 'MSAVI2 Value ranges',
+            titleTextStyle: {italic: false, bold: true}
+          },
+          lineWidth: 5,
+          colors: ['f0af07', '0f8755', '76b349'],
+        });
+
+print(chart1);
+
+// Timeseries chart for place3 region.
+
+var chart2 =
+    ui.Chart.image
+        .seriesByRegion({
+          imageCollection: msavi2_2,
+          band: 'MSAVI',
+          regions: place3,
+          reducer: ee.Reducer.mean(),
+          scale: 30,
+          seriesProperty: 'label',
+          xProperty: 'system:time_start'
+        })
+        .setChartType('LineChart')
+        .setOptions({
+          title: 'MSAVI2 Time Series Map for place3 ',
+          hAxis: {title: 'Date', titleTextStyle: {italic: false, bold: true}},
+          vAxis: {
+            title: 'MSAVI2 Value ranges',
+            titleTextStyle: {italic: false, bold: true}
+          },
+          lineWidth: 5,
+          colors: ['f0af07', '0f8755', '76b349'],
+        });
+
+print(chart2);
